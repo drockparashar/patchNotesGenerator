@@ -12,6 +12,8 @@ import java.io.IOException;
 public class GitHubWebhookController {
     @Autowired
     private RunGitDiff diff;
+    @Autowired
+    private PatchNoteGeneratorService geminiResponse;
     @PostMapping
     public ResponseEntity<String> handleWebhook(@RequestHeader("X-GitHub-Event") String eventType, @RequestBody WebhookPayload payload) throws IOException, InterruptedException {
         if(eventType.equals("ping")) return ResponseEntity.ok("pong");
@@ -25,7 +27,8 @@ public class GitHubWebhookController {
 
             try{
                 String diffOutput=diff.gitDiff("D:\\Disk E\\Java\\githubWebhook",getBeforeCommitSha,getAfterCommitSha);
-                System.out.println("Diff:"+diffOutput);
+                String aiPatchSummary= geminiResponse.askGemini(fullName,getAfterCommitSha,message,diffOutput);
+                System.out.println("Ai Response:"+aiPatchSummary);
             }catch (Exception e){
                 e.printStackTrace();
                 return ResponseEntity.status(500).body("Git diff failed: "+ e.getMessage());
