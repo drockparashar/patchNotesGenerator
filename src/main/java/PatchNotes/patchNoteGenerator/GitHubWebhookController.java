@@ -1,5 +1,6 @@
 package PatchNotes.patchNoteGenerator;
 
+import PatchNotes.patchNoteGenerator.service.TelegramMessageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,8 @@ public class GitHubWebhookController {
     private RunGitDiff diff;
     @Autowired
     private PatchNoteGeneratorService geminiResponse;
+    @Autowired
+    private TelegramMessageService telegramMessageService;
     @PostMapping
     public ResponseEntity<String> handleWebhook(@RequestHeader("X-GitHub-Event") String eventType, @RequestBody WebhookPayload payload) throws IOException, InterruptedException {
         if(eventType.equals("ping")) return ResponseEntity.ok("pong");
@@ -29,6 +32,9 @@ public class GitHubWebhookController {
                 String diffOutput=diff.gitDiff("D:\\Disk E\\Java\\githubWebhook",getBeforeCommitSha,getAfterCommitSha);
                 String aiPatchSummary= geminiResponse.askGemini(fullName,getAfterCommitSha,message,diffOutput);
                 System.out.println("Ai Response:"+aiPatchSummary);
+
+                telegramMessageService.sendMessageToGroup(aiPatchSummary);
+
             }catch (Exception e){
                 e.printStackTrace();
                 return ResponseEntity.status(500).body("Git diff failed: "+ e.getMessage());
