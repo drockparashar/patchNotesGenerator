@@ -1,6 +1,9 @@
 package PatchNotes.patchNoteGenerator;
 
+import PatchNotes.patchNoteGenerator.service.EmailService;
 import PatchNotes.patchNoteGenerator.service.TelegramMessageService;
+import PatchNotes.patchNoteGenerator.util.Prompts;
+import PatchNotes.patchNoteGenerator.util.RecipientList;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +20,15 @@ public class GitHubWebhookController {
     private PatchNoteGeneratorService geminiResponse;
     @Autowired
     private TelegramMessageService telegramMessageService;
+    @Autowired
+    private EmailService emailService;
+    @Autowired
+    private RecipientList recipientList;
+
+    //Configure according to your use case
+    //uses={"telegram","email"}
+    private final String[] uses={"email"};
+
     @PostMapping
     public ResponseEntity<String> handleWebhook(@RequestHeader("X-GitHub-Event") String eventType, @RequestBody WebhookPayload payload) throws IOException, InterruptedException {
         if(eventType.equals("ping")) return ResponseEntity.ok("pong");
@@ -30,11 +42,16 @@ public class GitHubWebhookController {
 
             try{
                 String diffOutput=diff.gitDiff("D:\\Disk E\\Java\\githubWebhook",getBeforeCommitSha,getAfterCommitSha);
-                String aiPatchSummary= geminiResponse.askGemini(fullName,getAfterCommitSha,message,diffOutput);
-                System.out.println("Ai Response:"+aiPatchSummary);
+                for(String use : uses){
+                    String aiPatchSummary= geminiResponse.askGemini(fullName,getAfterCommitSha,message,diffOutput,use);
+                    System.out.println("Ai Response:"+aiPatchSummary);
 
-                telegramMessageService.sendMessageToGroup(aiPatchSummary);
-
+                    switch (use.toLowerCase()) {
+                        case "telegram" ->telegramMessageService.sendMessageToGroup(aiPatchSummary);
+                        case "email" -> emailService.sendEmail(recipientList.getRecipientList(),"Repo updates",aiPatchSummary);
+                        default -> throw new IllegalArgumentException("Unsupported prompt use type: " + use);
+                    }
+                }
             }catch (Exception e){
                 e.printStackTrace();
                 return ResponseEntity.status(500).body("Git diff failed: "+ e.getMessage());
